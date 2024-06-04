@@ -34,29 +34,41 @@
 
 if (!empty($_POST['admin_name'])) {
 	//$admin = 'admin';
-	$admin = htmlspecialchars($_POST['admin_name']);
+	$admin = htmlspecialchars(trim($_POST['admin_name']));
 	// Counters
 	$changes = 0;
 	$writes = 0;
 	$files = [];
 
 	// Load class required for installation
-	require('ugrsr.class.php');
+	$main_class = 'ugrsr.class.php';
+	if (!file_exists($main_class)) {
+		die('ERROR - UGRSR CLASS NOT FOUND - Please ensure you have uploaded the vQmod install files correctly');
+	}
 
-	// Get directory two above installation directory
-	$opencart_path = realpath(dirname(__FILE__) . '/../../') . '/';
-	
+	require($main_class);
+
+	$vqmod_path = dirname(__FILE__, 2) . '/';
+
+	// Get the vqmod folder via the path
+	$vqmod_folder = basename($vqmod_path);
+
+	// OpenCart path
+	$opencart_path = dirname(__FILE__, 3) . '/';
+
 	// Verify path is correct
-	if(empty($opencart_path)) die('ERROR - COULD NOT DETERMINE OPENCART PATH CORRECTLY - ' . dirname(__FILE__));
+	if(empty($opencart_path)) {
+		die('ERROR - COULD NOT DETERMINE OPENCART PATH CORRECTLY - ' . __DIR__);
+	}
 
 	$write_errors = array();
-	if(!is_writeable($opencart_path . 'index.php')) {
+	if(!is_writable($opencart_path . 'index.php')) {
 		$write_errors[] = 'index.php not writeable';
 	}
-	if(!is_writeable($opencart_path . $admin . '/index.php')) {
+	if(!is_writable($opencart_path . $admin . '/index.php')) {
 		$write_errors[] = 'Administrator index.php not writeable';
 	}
-	if(!is_writeable($opencart_path . 'vqmod/pathReplaces.php')) {
+	if(!is_writable($opencart_path . $vqmod_folder . '/pathReplaces.php')) {
 		$write_errors[] = 'vQmod pathReplaces.php not writeable';
 	}
 
@@ -73,7 +85,7 @@ if (!empty($_POST['admin_name'])) {
 	// Set file searching to off
 	$u->file_search = false;
 
-	// Attempt upgrade if necessary. Otherwise just continue with normal install
+	// Attempt upgrade if necessary. Otherwise, just continue with normal install
 	$u->addFile('index.php');
 	$u->addFile($admin . '/index.php');
 
@@ -82,21 +94,18 @@ if (!empty($_POST['admin_name'])) {
 
 	$result = $u->run();
 
-	if($result['writes'] > 0) {
-		if(file_exists('../mods.cache')) {
-			unlink('../mods.cache');
-		}
-		//die('UPGRADE COMPLETE');
+	if(($result['writes'] > 0) && file_exists('../mods.cache')) {
+		unlink('../mods.cache');
 	}
 
 	$u->clearPatterns();
 	$u->resetFileList();
 
-	// Add catalog index files to files to include
+	// Add catalog index files to include
 	$u->addFile('index.php');
 
 	// Pattern to add vqmod include
-	$u->addPattern('~// Startup~', "// vQmod\nrequire_once('./vqmod/vqmod.php');\nVQMod::bootup();\n\n// VQMODDED Startup");
+	$u->addPattern('~// Startup~', "// vQmod\nrequire_once('./" . $vqmod_folder . "/vqmod.php');\nVQMod::bootup();\n\n// VQMODDED Startup");
 
 	$result = $u->run();
 	$writes += $result['writes'];
@@ -110,7 +119,7 @@ if (!empty($_POST['admin_name'])) {
 	$u->addFile($admin . '/index.php');
 
 	// Pattern to add vqmod include
-	$u->addPattern('~// Startup~', "//vQmod\nrequire_once('../vqmod/vqmod.php');\nVQMod::bootup();\n\n// VQMODDED Startup");
+	$u->addPattern('~// Startup~', "//vQmod\nrequire_once('../" . $vqmod_folder . "/vqmod.php');\nVQMod::bootup();\n\n// VQMODDED Startup");
 
 	$result = $u->run();
 	$writes += $result['writes'];
@@ -127,15 +136,15 @@ if (!empty($_POST['admin_name'])) {
 	$writes += $result['writes'];
 	$changes += $result['changes'];
 	$files = array_merge($files, $result['files']);
-	
+
 	$u->clearPatterns();
 	$u->resetFileList();
-	
+
 	// 2022 - Qphoria
 	// pathReplaces install
-	
+
 	// Add vqmod/pathReplaces.php file
-	$u->addFile('vqmod/pathReplaces.php');
+	$u->addFile($vqmod_folder . '/pathReplaces.php');
 
 	// Pattern to add vqmod include
 	$u->addPattern('~// START REPLACES //~', "// VQMODDED START REPLACES //\nif (defined('DIR_CATALOG')) { \$replaces[] = array('~^admin\b~', basename(DIR_APPLICATION)); }");
@@ -157,10 +166,10 @@ if (!empty($_POST['admin_name'])) {
 
 	// output result to user
 	die('VQMOD HAS BEEN INSTALLED ON YOUR SYSTEM!');
-} else {
-	echo 'vQmod Installer for OpenCart<br/>';
-	echo '<form method="post">
-		<span>Admin Folder Name:<input type="text" name="admin_name" value="admin" /></span>
-		<input type="submit" value="Go" />
-	</form>';
 }
+
+echo 'vQmod Installer for OpenCart<br/>';
+echo '<form method="post">
+	<span>Admin Folder Name:<input type="text" name="admin_name" value="admin" /></span>
+	<input type="submit" value="Go" />
+</form>';
